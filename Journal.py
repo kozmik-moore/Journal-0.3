@@ -5,10 +5,12 @@ Created on Tue Sep 20 15:00:50 2016
 @author: Kozmik
 """
 from tkinter import *
+from tkinter.ttk import *
 import pickle
 import tkinter.messagebox as messagebox
 import tkinter.simpledialog as simpledialog
 from tkinter import font
+from datetime import datetime
 import math
 import pdb
 
@@ -210,7 +212,100 @@ class DateFrame(Frame):
         self.entry = entry
         if not self.entry:
             self.entry = JEntry()
-            
+        self.journal = journal
+        
+        self.user_date = ''
+        self.program_date = 0
+        
+        self.MONTHS = {"01":"Jan", "02":"Feb", "03":"Mar", "04":"Apr", 
+        "05":"May", "06":"Jun", "07":"Jul", "08":"Aug", 
+        "09":"Sep", "10":"Oct", "11":"Nov", "12":"Dec"}
+        
+        self.dates_registry = {}
+        self.updateDateRegistry()
+        
+        self.date_box = Combobox(self, postcommand=self.updateDateboxList)
+        
+    def updateGUI(self, entry):
+        self.entry = entry
+        self.date_box.set(self.ConvertToUserFormat(self.entry.getDate()))
+    def bindDatebox(self, function):
+        self.date_box.bind("<ComboboxSelected>", function)
+    def updateDateRegistry(self):
+        self.dates_registry = {}
+        for item in self.journal.getAllDates():
+            self.dates_registry[item] = self.ConvertToUserFormat(item)        
+    def getDateUserFormat(self):
+        return self.user_date
+    def getDateProgramFormat(self):
+        return self.program_date
+    def getCurrentDate(self): #Program format
+        date=datetime.today()
+        return int(datetime.strftime(date, '%Y%m%d%H%M%S'))
+    def get(self):
+        return self.date.get()
+    def ConvertToUserFormat(self, date):
+        stringdate = str(date)
+        if stringdate != '':
+            datestr = ''
+            datestr = stringdate[6:8] + ' ' + self.MONTHS[stringdate[4:6]] + ' ' + stringdate[:4] + ', ' + stringdate[8:]
+            return datestr
+    def updateDateboxList(self):
+#        self.clear()
+        self.implementFilters()
+        self.date_box['values'] = self.getUserDates()
+    def getUserDates(self):
+        dates_list = []
+        for date in sorted(self.dates_registry.keys()):
+            dates_list.append(self.dates_registry[date])
+        return dates_list
+    def getProgramDates(self):
+        return sorted(self.dates_registry.keys())
+        
+class DateFilter:
+    def __init__(self, entry=None, journal=None):
+        self.entry = entry
+        if not self.entry:
+            self.entry = JEntry()
+        self.journal = journal
+        self.filter_type = StringVar(name="Search Type", value="OR")
+        self.tagslist = []
+        if self.journal:
+            self.tagslist + self.journal.getAllTags()
+        self.tagslist += self.entry.getTags()
+        self.check_box_dialog = TagsCheckboxDialog(self.entry, self.journal, None, True)
+
+    def createFilterDialog(self):
+        main = Toplevel()
+        top = Frame(main)
+        middle = Frame(main)
+        bottom = Frame(main)
+        
+        cb_canvas = self.check_box_dialog.getCheckboxCanvas(main)
+        main.title("Filters")
+        
+        ORPTYPE = Radiobutton(top, text="OR(P)", value="OR(P)", variable=self.filter_type)
+        ORPTYPE.grid(row=0, column=1, sticky=W)
+        ORTYPE = Radiobutton(top, text="OR", value="OR", variable=self.filter_type)
+        ORTYPE.grid(row=0, column=0, sticky=W)
+        ANDTYPE = Radiobutton(top, text="AND", value="AND", variable=self.filter_type)
+        ANDTYPE.grid(row=0, column=2, sticky=W)
+        
+        cb_canvas.grid(row=1, column=0, rowspan=10, columnspan=2)
+        ALL = Button(bottom, text="All", command=lambda:self.selectAllCheckboxes(filter_list))
+        NONE = Button(bottom, text="None", command=lambda:self.deselectAllCheckboxes(filter_list))
+        INVERT = Button(bottom, text="Invert", command=lambda:self.invertSelection(filter_list))
+        ALL.grid(row=2, column=0)
+        NONE.grid(row=2, column=1)
+        INVERT.grid(row=2, column=2)
+        top.pack(side=TOP)
+        middle.pack(side=TOP)
+        bottom.pack(side=TOP)
+        main.grab_set()
+        self.clear()
+        self.entry_obj.update()
+        return main
+        
         
 class BodyFrame(Frame):
     def __init__(self, master=None, entry=None):
@@ -264,22 +359,31 @@ class TagsFrame(Frame):
         self.entry = entry
         if not self.entry:
             self.entry = JEntry()
-        self.dialog = TagsCheckboxDialog(self, self.entry, self.journal)
-        
-        self.canvas = TagsCanvas(self, self.entry)
-        TAGS = Button(self, text='Tags:', command=self.selectDialog)
-        TAGS.pack(side=LEFT, anchor=W)
-        ADD = Button(self, text='Add Tags', command=self.addDialog)
-        self.canvas.pack(side=LEFT, anchor=W, expand=True, fill=X)
-        ADD.pack(side=RIGHT)
+        self.dialog = TagsCheckboxDialog(self.entry, self.journal)
+        style = Style(self)
+        style.configure("TagsFrame.TButton", side=TOP)
+        frame1 = Frame(self)
+        frame2 = Frame(self)
+        frame3 = Frame(self)
+        scrollbar = Scrollbar(frame2, orient=HORIZONTAL)
+        self.canvas = TagsCanvas(frame2, self.entry, xscrollcommand=scrollbar.set)
+#        scrollbar.config(command=self.canvas.xview)
+        TAGS = Button(frame1, text='Tags:', command=self.selectDialog, style='TagsFrame.TButton')
+        TAGS.pack(anchor=N)
+        ADD = Button(frame3, text='Add Tags', command=self.addDialog, style='TagsFrame.TButton')
+        self.canvas.pack(side=TOP)
+#        scrollbar.pack(side=BOTTOM, expand=True, fill=X)
+        ADD.pack(anchor=N, side=RIGHT)
+        frame1.pack(side=LEFT, expand=True, fill=X)
+        frame2.pack(side=LEFT, expand=True, fill=X)
+        frame3.pack(side=LEFT, expand=True, fill=X)
         
         for tag in self.entry.getTags():
             self.canvas.addTag(tag)
-                
-        self.pack(side=TOP)
-                
+                  
         if root:
             root.mainloop()
+            self.pack(side=TOP)
         
     def updateGUI(self, entry):
         self.entry = entry
@@ -299,8 +403,8 @@ class TagsFrame(Frame):
     def selectDialog(self):
         main = Toplevel()
         main.title('Select Tags')
-        self.dialog = TagsCheckboxDialog(main, self.entry, self.journal)
-        self.dialog.pack()
+        canvas = self.dialog.getCheckboxCanvas(main)
+        canvas.pack()
         main.protocol("WM_DELETE_WINDOW", lambda self=self, dialog=self.dialog, window=main: self.propogateTags(self.dialog, window))
                 
     def propogateTags(self, dialog, window):
@@ -324,10 +428,10 @@ class TagsFrame(Frame):
                 self.entry.addTag(tag.strip())
                 
 class TagsCanvas(Canvas):
-    def __init__(self, master=None, entry=None):
+    def __init__(self, master=None, entry=None, **kwargs):
         h = 1
         w = 0
-        Canvas.__init__(self, master, height=h, width=w)
+        Canvas.__init__(self, master, height=h, width=w, highlightthickness=0, xscrollcommand=kwargs['xscrollcommand'])
         self.entry = entry
         
         self.tagslist = {}
@@ -342,8 +446,7 @@ class TagsCanvas(Canvas):
             self.entry.addTag(tag)
         if tag not in self.tagslist:
             self.tagslist[tag] = TagButton(self, tag)
-            self.tagslist[tag].pack(side=LEFT, padx=1)
-#            self.itemconfig(self.tagslist[tag], tag)
+#            self.tagslist[tag].pack(side=LEFT, padx=1)
         self.sortTags()
         
     def deleteTag(self, tag):
@@ -356,10 +459,17 @@ class TagsCanvas(Canvas):
             
     def sortTags(self):
         self.delete('all')
+        col = 10
+        row = math.ceil(len(self.tagslist) / col)
+        grid = []
+        grid = [(x,y) for y in range(0, row) for x in range(0, col)]
+        index = 0
         for tag in sorted(self.tagslist):
             self.tagslist[tag].makeInvisible()
         for tag in sorted(self.tagslist):
-            self.tagslist[tag].pack(side=LEFT, padx=1)
+            x, y = grid[index]
+            self.tagslist[tag].grid(column=x, row=y, sticky=EW)
+            index += 1#.pack(side=LEFT, padx=1)
             
     def getTags(self):
         return sorted(self.tagslist.keys())
@@ -401,10 +511,11 @@ class TagButton(Button):
         
     def update(self):
         self.tag = self.entry.get()
+        coords = self.grid_info()
         self.dialog.destroy()
         self.dialog = None
         self.config(text=self.tag)
-        self.pack(side=LEFT, padx=1)
+        self.grid(row=coords["row"], column=coords["column"], sticky=EW)
         
     def delete(self):
         delete = messagebox.askyesno(title='Delete?', message='Are you sure you want to delete this tag?')
@@ -416,7 +527,7 @@ class TagButton(Button):
                 self.master.deleteTag(self.tag)
                 
     def makeInvisible(self):
-        self.pack_forget()
+        self.grid_forget()
         
     def __str__(self):
         return self.tag
@@ -425,92 +536,92 @@ class TagButton(Button):
         return self.tag
                
                
-class TagsCheckboxDialog(Canvas):
-    def __init__(self, master=None, entry=None, journal=None, tags=None, value=False, side=TOP):
+class TagsCheckboxDialog:
+    def __init__(self, entry=None, journal=None, tags=None, value=False):
         self.vars_dict = {}
         self.vars = []
-        root = None
-        self.master = master
         self.journal = journal
+        self.bool_value = value
         self.tags = tags
-        all_tags = []
+        self.all_tags = []
         if self.journal:
-            all_tags = self.journal.getTags()
+            self.all_tags = self.journal.getAllTags()
         elif tags:
-            all_tags = self.tags
+            self.all_tags = self.tags
         self.entry = entry
         if not self.entry:
-            self.entry = JEntry()
-        entry_tags = self.entry.getTags()
-        for tag in entry_tags:
-            if tag not in all_tags:
-                all_tags.append(tag)
-#        tags = None
-#        value = None
-#        side = None
+            self.entry = JEntry() 
+        for tag in self.entry.getTags():
+            if tag not in self.all_tags:
+                self.all_tags.append(tag)
             
-#        if 'master' in kwargs:
-#            self.master = kwargs['master']
-#        if 'tags' in kwargs:
-#            tags = kwargs[tags]
-#        elif 'journal' in kwargs:
-#            self.journal = kwargs['journal']
-#            tags = self.journal.getTags()
-#        if 'value' in kwargs:
-#            value = kwargs['value']
-#        if 'side' in kwargs:
-#            side = kwargs['side']
+        self.canvas = None
             
-        if not self.master:
-            root = Tk()
-            Canvas.__init__(self, master=root)
-        else:
-            Canvas.__init__(self, self.master)
-#        self.cb_list = []
-        if all_tags:
-            for tag in sorted(all_tags):
+    def update(self, entry):
+        self.entry = entry
+        for tag in self.entry.getTags():
+            if tag not in self.all_tags:
+                self.all_tags.append(tag)
+                
+    def createCheckboxGrid(self, value):
+        for tag in sorted(self.all_tags):
                 var = None
-                if tag in entry_tags:
+                if tag in self.entry.getTags():
                     var = BooleanVar(name=tag, value=True)
                 else:
                     var = BooleanVar(name=tag, value=value)
-                self.vars_dict[tag] = Checkbutton(self, text=tag, variable=var)
-    #            self.cb_list.append(chk)
-    #           chk.pack(side=side, anchor=anchor, expand=YES)
+                self.vars_dict[tag] = Checkbutton(self.canvas, text=tag, variable=var)
                 self.vars.append(var)
-#        pdb.set_trace()
-            tmp = sorted(self.vars_dict)
-#            item = 0
-            row = 6
-            col = math.ceil(len(tmp) / row)
-            grid = [(x, y) for x in range(0, col) for y in range(0, row) ]
-            for i in range(0, len(tmp)):
-                x, y = grid[i]
-                self.vars_dict[tmp[i]].grid(row=y, column=x, sticky=W)
-        else:
-            message = Message(self, text='There are no tags to display.', width=200)
-            message.pack(expand=True, fill=X)
-#        while item < len(tmp):
-#            for i in range(0, row):
-#                try:
-#                    self.vars_dict[tmp[i]].grid(row=i, column=col, sticky=W)
-#                    item+=1
-#                except IndexError:
-#                    break
-#            col+=1
+        tmp = sorted(self.vars_dict)
+        row = 6
+        col = math.ceil(len(tmp) / row)
+        grid = [(x, y) for x in range(0, col) for y in range(0, row) ]
+        for i in range(0, len(tmp)):
+            x, y = grid[i]
+            self.vars_dict[tmp[i]].grid(row=y, column=x, sticky=W)
             
-        if root:
-            self.pack(side=side)
-            root.mainloop()
+    def selectAllBoxes(self):
+        for index in self.vars:
+            self.vars[index] = True
+            
+    def deselectAllBoxes(self):
+        for index in self.vars:
+            self.vars[index] = False
+            
+    def invertAllBoxes(self):
+        for index in self.vars:
+            if self.vars[index]:
+                self.vars[index] = False
+            else:
+                self.vars[index] = True
             
     def state(self):
-#        return list(map((lambda var: var.get()), self.vars))
         self.tags = {}
         for i in range(0, len(self.vars)):
             self.tags[sorted(self.vars_dict.keys())[i]] = self.vars[i].get()
         return self.tags
     def getTags(self):
         return sorted(self.vars_dict.keys())
+        
+    def getCheckboxCanvas(self, master):
+        root = None
+        if not master:
+            root = Tk()
+            self.canvas = Canvas(master=root, highlightthickness=0)
+        else:
+            self.canvas = Canvas(master, highlightthickness=0)
+        if self.all_tags:
+            self.createCheckboxGrid(self.bool_value)
+        else:
+            message = Message(self, text='There are no tags to display.', width=200)
+            message.pack(expand=True, fill=X)
+            
+        if root:
+            self.canvas.pack(side=TOP)
+            root.mainloop()
+            
+        return self.canvas
+        
 
         
 class AppFrame(Tk):
