@@ -5,16 +5,15 @@ Created on Thu Sep 29 16:45:07 2016
 @author: Kozmik
 """
 
-
 class JEntry:
-    def __init__(self, date=None, body=None, tags=None, parent=None, child=None):
+    def __init__(self, date=None, body=None, tags=None, parent=None):
         self.date = date
         self.body = body
         self.tags = tags
         if not tags:
             self.tags = []
         self.parent = parent
-        self.child = child
+        self.child = []
         
     def getDate(self):
         return self.date
@@ -28,14 +27,14 @@ class JEntry:
     def getParent(self):
         return self.parent
         
-    def getChild(self):
+    def getChild(self):         #change to 'children'
         return self.child
         
     def setDate(self, date):
         self.date = date
         
     def setBody(self, body):
-        self.body = body
+        self.body = body.rstrip()
         
     def setTags(self, tags):
         self.tags = tags
@@ -44,7 +43,7 @@ class JEntry:
         self.parent = parent
         
     def setChild(self, child):
-        self.child = child
+        self.child.append(child)
         
     def addTag(self, tag):
         if tag not in self.tags:
@@ -61,21 +60,28 @@ class JEntry:
         self.parent = None
         
     def linkChild(self, date):
-        self.child = date
+        if date not in self.child:
+            self.child.append(date)
         
-    def unlinkChild(self):
-        self.child = None
+    def unlinkChild(self, date):
+        self.child.remove(date)
         
-    def getCopy(self):
-        new = JEntry(self.date, self.body, self.tags, self.parent, self.child)
+#    def deleteChildren(self):
+#        self.child = []
+#        
+#    def importChildren(self, children):
+#        self.child = children
+        
+    def __deepcopy__(self):
+        new = JEntry(self.date, self.body, self.tags, self.parent)
+        if self.child:
+            for date in self.child:
+                new.linkChild(date)
         return new
         
     def equals(self, entry):
         if len(self.getTags()) != len(entry.getTags()):
             return False
-        for tag in self.tags:
-            if tag not in entry.getTags():
-                return False
         if self.date != entry.getDate():
             return False
         if self.body != entry.getBody():
@@ -84,30 +90,39 @@ class JEntry:
             return False
         if self.child != entry.getChild():
             return False
+        for tag in self.tags:
+            if tag not in entry.getTags():
+                return False
         return True
 
 
-class JObject():
+class JObject:
     def __init__(self):
         self.storage = dict()
         self.population = 0
+        self.tagslist = []
         
     def getAllDates(self):
         return sorted(self.storage.keys())
         
     def getAllTags(self):
-        tagslist = []
+        self.sortTags()
+        return sorted(self.tagslist)
+        
+    def sortTags(self):
         for date in self.storage:
             for tag in self.storage[date].getTags():
-                if tag not in tagslist:
-                    tagslist.append(tag)
-        return tagslist
-        
+                if tag not in self.tagslist:
+                    self.tagslist.append(tag)
+        self.tagslist = sorted(self.tagslist)
+                    
     def add(self, entry):
         self.storage[entry.getDate()] = entry
-        self.population += 1
+        if entry not in self.storage:
+            self.population += 1
         
     def delete(self, entry):
+#        if entry in self.storage:
         del self.storage[entry.getDate()]
         self.population -= 1
         
@@ -117,10 +132,10 @@ class JObject():
     def getNumberOfEntries(self):
         return self.population
         
-    def getCopy(self):
+    def __deepcopy__(self):
         new = JObject()
         for date in self.getAllDates():
-            new.add(self.getEntry(date).getCopy())
+            new.add(self.getEntry(date).__deepcopy__())
         return new   
         
     def isEmpty(self):

@@ -8,33 +8,63 @@ This file contains tool, test, and experimental modules
 """
 from JObject import *
 import pickle
+from datetime import datetime
+from JournalObject import *
 
 """------------------------Tools-------------------------"""
 
 class Conversion:
     def __init__(self, journal):
         self.journal = journal
-        self.JObj = JObject()
+        self.newjournal = JObject()
+        self.entry = None
         
     def convert(self):
-        for date in sorted(self.journal):
+        for date in self.journal:
+            newdate = self.convertDate(date)
             body = self.journal[date][0]
             tags = self.journal[date][1]
             parent = self.journal[date][2]
             if parent:
-                self.JObj.getEntry(parent).setChild(date)
-            entry = JEntry(date, body, tags, parent)
-            self.JObj.add(entry)
-        return self.JObj
+                newparent = self.convertDate(parent)
+            else:
+                newparent = parent
+            self.entry = JEntry(newdate, body, tags, newparent)
+            self.newjournal.add(entry=self.entry)
             
-    def getJObject(self):
-        return self.JObj
+        for date in self.newjournal.getAllDates():
+            parent = self.newjournal.getEntry(date).getParent()
+            if parent:
+                this_parent = self.newjournal.getEntry(parent)
+                this_parent.linkChild(date)
+                
+    def getNewJournal(self):
+        return self.newjournal
         
-    def mergeJObjects(self, jobj):
-        for date in jobj.getAllDates():
-            if date not in self.JObj.getAllDates():
-                self.JObj.add(jobj.getEntry(date))
-        return self.JObj
+    def convertDate(self, date):
+        return datetime.strptime(str(date), '%Y%m%d%H%M%S')
+        
+    def fixChildren(self):
+        self.newjournal = self.journal.__deepcopy__()
+        for date in self.newjournal.getAllDates():
+            entry = self.newjournal.getEntry(date)
+            children = entry.getChild()
+            newchildren = []
+            entry.deleteChildren()
+            for child in children:
+                newchild = self.recursiveChildSearch(child)
+                if newchild:
+                    newchildren.append(newchild)
+            entry.importChildren(newchildren)
+                    
+    def recursiveChildSearch(self, child):
+        if type(child) is list:
+            self.recursiveChildSearch(child[0])
+        else:
+            return child
+                    
+        
+            
         
 """--------------------Experiments------------------------"""
        
